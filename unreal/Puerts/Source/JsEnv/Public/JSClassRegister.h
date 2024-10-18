@@ -20,9 +20,11 @@
 
 #include <string>
 
+PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "v8.h"
 #pragma warning(pop)
+PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 #include "NamespaceDef.h"
 
@@ -89,7 +91,7 @@ void JSENV_API ForeachRegisterClass(std::function<void(const JSClassDefinition* 
 
 JSENV_API const JSClassDefinition* FindClassByID(const void* TypeId);
 
-const JSClassDefinition* FindCppTypeClassByName(const std::string& Name);
+JSENV_API const JSClassDefinition* FindCppTypeClassByName(const std::string& Name);
 
 #if USING_IN_UNREAL_ENGINE
 typedef void (*AddonRegisterFunc)(v8::Local<v8::Context> Context, v8::Local<v8::Object> Exports);

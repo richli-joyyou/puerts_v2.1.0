@@ -10,12 +10,20 @@ using System.IO;
 using System.Reflection;
 
 public class JsEnv : ModuleRules
-{
-    private bool UseNewV8 = 
+{    
+    enum SupportedV8Versions
+    {
+        VDeprecated, // for 4.24 or blow only
+        V8_4_371_19,
+        V9_4_146_24,
+        V10_6_194
+    }
+
+    private SupportedV8Versions UseV8Version = 
 #if UE_4_25_OR_LATER
-        true;
+        SupportedV8Versions.V8_4_371_19;
 #else
-        false;
+        SupportedV8Versions.VDeprecated;
 #endif
 
     private bool UseNodejs = false;
@@ -33,14 +41,14 @@ public class JsEnv : ModuleRules
     private bool ThreadSafe = false;
 
     private bool FTextAsString = true;
+
+    // v8 9.4+
+    private bool SingleThreaded = false;
     
     public static bool WithSourceControl = false;
     
     public JsEnv(ReadOnlyTargetRules Target) : base(Target)
     {
-#if UE_5_3_OR_LATER
-        PCHUsage = PCHUsageMode.NoPCHs;
-#endif
         PublicDefinitions.Add("USING_IN_UNREAL_ENGINE");
         //PublicDefinitions.Add("WITH_V8_FAST_CALL");
         
@@ -66,7 +74,6 @@ public class JsEnv : ModuleRules
         }
 
         bEnableExceptions = true;
-        bEnableUndefinedIdentifierWarnings = false; // 避免在VS 2017编译时出现C4668错误
         var ContextField = GetType().GetField("Context", BindingFlags.Instance | BindingFlags.NonPublic);
         if (ContextField != null)
         {
@@ -85,6 +92,16 @@ public class JsEnv : ModuleRules
         else
         {
             PublicDefinitions.Add("PUERTS_FORCE_CPP_UFUNCTION=0");
+        }
+
+        bool bKeepUObjectReference = true;
+        if(bKeepUObjectReference)
+        {
+            PublicDefinitions.Add("PUERTS_KEEP_UOBJECT_REFERENCE=1");
+        }
+        else
+        {
+            PublicDefinitions.Add("PUERTS_KEEP_UOBJECT_REFERENCE=0");
         }
 
         bool UseWasm = false;
@@ -119,7 +136,7 @@ public class JsEnv : ModuleRules
             ForceStaticLibInEditor = true;
             ThirdPartyQJS(Target);
         }
-        else if (UseNewV8)
+        else if (UseV8Version > SupportedV8Versions.VDeprecated)
         {
             ThirdParty(Target);
         }
@@ -346,13 +363,35 @@ public class JsEnv : ModuleRules
 
     void ThirdParty(ReadOnlyTargetRules Target)
     {
+        if (SingleThreaded)
+        {
+            PrivateDefinitions.Add("USING_SINGLE_THREAD_PLATFORM");
+        }
+
+        string v8LibSuffix = "";
+        
+        if (UseV8Version == SupportedV8Versions.V8_4_371_19)
+        {
+            if(Directory.Exists(Path.Combine(ModuleDirectory, "..", "..", "ThirdParty", "v8_8.4.371.19")))
+            {
+                v8LibSuffix = "_8.4.371.19";
+            }
+        }
+        else if (UseV8Version == SupportedV8Versions.V9_4_146_24)
+        {
+            v8LibSuffix = "_9.4.146.24";
+        }
+        else if (UseV8Version == SupportedV8Versions.V10_6_194)
+        {
+            v8LibSuffix = "_10.6.194";
+        }
         //Add header
         string HeaderPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "..", "ThirdParty", "Include"));
         PublicIncludePaths.AddRange(new string[] { Path.Combine(HeaderPath, "websocketpp") });
         PublicIncludePaths.AddRange(new string[] { Path.Combine(HeaderPath, "asio") });
-        PublicIncludePaths.AddRange(new string[] { Path.Combine(ModuleDirectory, "..", "..", "ThirdParty", "v8", "Inc") });
+        PublicIncludePaths.AddRange(new string[] { Path.Combine(ModuleDirectory, "..", "..", "ThirdParty", "v8" + v8LibSuffix, "Inc") });
 
-        string LibraryPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "..", "ThirdParty", "v8", "Lib"));
+        string LibraryPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "..", "ThirdParty", "v8" + v8LibSuffix, "Lib"));
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
             if (!Target.bBuildEditor || ForceStaticLibInEditor)
@@ -588,12 +627,26 @@ public class JsEnv : ModuleRules
             if (!Target.bBuildEditor || ForceStaticLibInEditor)
             {
                 string V8LibraryPath = Path.Combine(LibraryPath, "macOS");
+#if UE_5_2_OR_LATER
+                if (Target.Architecture == UnrealArch.Arm64)
+                {
+                    V8LibraryPath = Path.Combine(LibraryPath, "macOS_arm64");
+                }
+#endif
                 PublicAdditionalLibraries.Add(Path.Combine(V8LibraryPath, "libquickjs.a"));
             }
             else
             {
-                string V8LibraryPath = Path.Combine(LibraryPath, "macOSdylib");
-                PublicAdditionalLibraries.Add(Path.Combine(V8LibraryPath, "libquickjs.dylib"));
+               string V8LibraryPath = Path.Combine(LibraryPath, "macOSdylib");
+               string QJSDylibName = "libquickjs.dylib";
+#if UE_5_2_OR_LATER
+                if (Target.Architecture == UnrealArch.Arm64)
+                {
+                    V8LibraryPath = Path.Combine(LibraryPath, "macOS_arm64");
+                    QJSDylibName = "libquickjs.a";
+                }
+#endif
+                PublicAdditionalLibraries.Add(Path.Combine(V8LibraryPath, QJSDylibName));
             }
         }
         else if (Target.Platform == UnrealTargetPlatform.IOS)

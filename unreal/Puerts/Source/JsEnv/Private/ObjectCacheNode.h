@@ -8,11 +8,13 @@
 
 #pragma once
 
+#include "NamespaceDef.h"
+
+PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "v8.h"
 #pragma warning(pop)
-
-#include "NamespaceDef.h"
+PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 namespace PUERTS_NAMESPACE
 {
@@ -40,6 +42,8 @@ public:
         TypeId = rhs.TypeId;
         Next = rhs.Next;
         Value = std::move(rhs.Value);
+        UserData = rhs.UserData;
+        rhs.UserData = nullptr;
         rhs.TypeId = nullptr;
         rhs.Next = nullptr;
         return *this;

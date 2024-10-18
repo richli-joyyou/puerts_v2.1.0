@@ -8,11 +8,13 @@
 
 #pragma once
 
+#include "NamespaceDef.h"
+
+PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "v8.h"
 #pragma warning(pop)
-
-#include "NamespaceDef.h"
+PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 #include <map>
 #include "JSClassRegister.h"
@@ -28,7 +30,7 @@ public:
 
     void LoadCppType(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
-    virtual bool IsInstanceOfCppObject(const void* TypeId, v8::Local<v8::Object> JsObject) override;
+    virtual bool IsInstanceOfCppObject(v8::Isolate* Isolate, const void* TypeId, v8::Local<v8::Object> JsObject) override;
 
     virtual std::weak_ptr<int> GetJsEnvLifeCycleTracker() override;
 

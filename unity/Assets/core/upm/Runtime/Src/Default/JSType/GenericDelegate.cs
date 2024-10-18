@@ -84,7 +84,7 @@ namespace Puerts
         {
             if (obj != null)
             {
-                var gd = new GenericDelegate(IntPtr.Zero, null);
+                var gd = new GenericDelegate(IntPtr.Zero, null, null);
                 gd.Action();
                 gd.Action(obj);
                 gd.Action(obj, obj);
@@ -113,7 +113,13 @@ namespace Puerts
             {
                 return maybeOne.Target as GenericDelegate;
             }
-            GenericDelegate genericDelegate = new GenericDelegate(ptr, jsEnv);
+
+            string stacktrace = null;
+#if UNITY_EDITOR
+            //stacktrace = jsEnv.Eval<string>("new Error().stack");
+            stacktrace = PuertsDLL.GetJSStackTrace(jsEnv.isolate);
+#endif
+            GenericDelegate genericDelegate = new GenericDelegate(ptr, jsEnv, stacktrace);
             nativePtrToGenericDelegate[ptr] = new WeakReference(genericDelegate);
             return genericDelegate;
         }
@@ -331,17 +337,24 @@ namespace Puerts
         private Delegate firstValue = null;
         private Dictionary<Type, Delegate> bindTo = null;
 
+#if UNITY_EDITOR
+        private string stacktrace;
+#endif
+
         internal IntPtr getJsFuncPtr() 
         {
             return nativeJsFuncPtr;
         }
 
-        internal GenericDelegate(IntPtr nativeJsFuncPtr, JsEnv jsEnv)
+        internal GenericDelegate(IntPtr nativeJsFuncPtr, JsEnv jsEnv, string stacktrace)
         {
             this.nativeJsFuncPtr = nativeJsFuncPtr;
             jsEnv.IncFuncRef(nativeJsFuncPtr);
             isolate = jsEnv != null ? jsEnv.isolate : IntPtr.Zero;
             this.jsEnv = jsEnv;
+#if UNITY_EDITOR
+            this.stacktrace = stacktrace;
+#endif
         }
 
         internal void Close()
@@ -353,10 +366,14 @@ namespace Puerts
 
         private void CheckLiveness(bool shouldThrow = true)
         {
-            if (nativeJsFuncPtr == IntPtr.Zero && shouldThrow)
+            if (nativeJsFuncPtr == IntPtr.Zero)
             {
-                throw new Exception("JsEnv has been disposed");
-            } 
+#if UNITY_EDITOR
+                if (shouldThrow) throw new Exception("JsEnv has been disposed, stacktrace:" + (string.IsNullOrEmpty(this.stacktrace) ? "unknown" : this.stacktrace));
+#else
+                if (shouldThrow) throw new Exception("JsEnv has been disposed");
+#endif
+            }
             else 
             {
                 jsEnv.CheckLiveness();
@@ -365,11 +382,14 @@ namespace Puerts
 
         ~GenericDelegate() 
         {
-            CheckLiveness(false);
+            if (nativeJsFuncPtr == IntPtr.Zero) return;
 #if THREAD_SAFE
             lock(jsEnv) {
 #endif
-            jsEnv.DecFuncRef(nativeJsFuncPtr);
+            if (jsEnv.CheckLiveness(false))
+            {
+                jsEnv.DecFuncRef(nativeJsFuncPtr);
+            }
 #if THREAD_SAFE
             }
 #endif

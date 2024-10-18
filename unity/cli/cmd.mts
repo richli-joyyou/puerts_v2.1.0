@@ -18,12 +18,12 @@ program
     .addOption(
         new Option("--platform <platform>", "the target platform")
             .default("")
-            .choices(["win", "osx", "linux", "android", "ios"])
+            .choices(["win", "osx", "linux", "android", "ios", "ohos", "wasm"])
     )
     .addOption(
         new Option("--arch <arch>", "the target architecture. 'auto' means build all available archs for the platform and universal binary will be created in osx.")
             .default("auto")
-            .choices(["auto", "ia32", "x64", "arm64", "armv7"])
+            .choices(["auto", "ia32", "x64", "arm64", "armv7", "wasm32"])
     )
     .addOption(
         new Option("--config <ReleaseOrDebug>", "Debug ver or Release ver. In Windows, Debug means DebugWithRelInfo")
@@ -138,7 +138,11 @@ backendProgram
 program
     .command("dotnet-test [backend]")
     .option("--filter <filter>", "testcase will be filtered", "")
+    .option('-sq, --switch_qjs', 'switch to quickjs backend')
     .action((backend: string, options: any) => {
+        if (options.switch_qjs) {
+            process.env.SwitchToQJS = '1';
+        }
         dotnetTest(cwd, backend || "quickjs", options.filter);
     });
 

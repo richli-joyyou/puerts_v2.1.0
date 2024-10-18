@@ -290,8 +290,15 @@ static v8::Value* GetModuleExecutor(v8::Context* env)
     auto ret = pesapi_eval((pesapi_env) env, (const uint8_t*) ExecuteModuleJSCode, strlen(ExecuteModuleJSCode), "__puer_execute__.mjs");
 
     auto Isolate = Context->GetIsolate();
+    v8::Local<v8::Object> Global = Context->Global();
+    auto Ret = Global->Get(Context, v8::String::NewFromUtf8(Isolate, EXECUTEMODULEGLOBANAME).ToLocalChecked());
+    v8::Local<v8::Value> Func;
+    if (Ret.ToLocal(&Func) && Func->IsFunction())
+    {
+        return *Func;
+    }
 
-    return *v8::FunctionTemplate::New(Isolate, puerts::esmodule::ExecuteModule)->GetFunction(Context).ToLocalChecked();
+    return nullptr;
 }
 
 static void* GetJSObjectValue(const PersistentObjectInfo* objectInfo, const char* key, const void* Typeid)
@@ -569,7 +576,7 @@ struct RestArguments
 template <typename T>
 struct OptionalParameter
 {
-    static T GetPrimitive(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, int index)
+    static T GetPrimitive(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, puerts::WrapData* wrapData, int index)
     {
         if (index < info.Length())
         {
@@ -577,6 +584,7 @@ struct OptionalParameter
         }
         else
         {
+            if (wrapData->IsExtensionMethod) ++index;
             auto pret = (T*)GetDefaultValuePtr(methodInfo, index);
             if (pret) 
             {
@@ -586,7 +594,7 @@ struct OptionalParameter
         }
     }
     
-    static T GetValueType(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, int index)
+    static T GetValueType(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, puerts::WrapData* wrapData, int index)
     {
         if (index < info.Length())
         {
@@ -594,6 +602,7 @@ struct OptionalParameter
         }
         else
         {
+            if (wrapData->IsExtensionMethod) ++index;
             auto pret = (T*)GetDefaultValuePtr(methodInfo, index);
             if (pret) 
             {
@@ -605,7 +614,7 @@ struct OptionalParameter
         }
     }
     
-    static void* GetString(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, int index)
+    static void* GetString(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, puerts::WrapData* wrapData, int index)
     {
         if (index < info.Length())
         {
@@ -614,11 +623,12 @@ struct OptionalParameter
         }
         else
         {
+            if (wrapData->IsExtensionMethod) ++index;
             return GetDefaultValuePtr(methodInfo, index);
         }
     }
     
-    static void* GetRefType(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, int index, const void* typeId)
+    static void* GetRefType(v8::Local<v8::Context> context, const v8::FunctionCallbackInfo<v8::Value>& info, const void* methodInfo, puerts::WrapData* wrapData, int index, const void* typeId)
     {
         if (index < info.Length())
         {
@@ -626,6 +636,7 @@ struct OptionalParameter
         }
         else
         {
+            if (wrapData->IsExtensionMethod) ++index;
             return GetDefaultValuePtr(methodInfo, index);
         }
     }
@@ -689,7 +700,7 @@ struct JSEnv
 {
     JSEnv()
     {
-        puerts::BackendEnv::GlobalPrepare();
+        puerts::FBackendEnv::GlobalPrepare();
         
 #if defined(WITH_NODEJS)
         std::string Flags = "--stack_size=856";
@@ -702,19 +713,19 @@ struct JSEnv
 #endif
         v8::V8::SetFlagsFromString(Flags.c_str(), static_cast<int>(Flags.size()));
         
-        MainIsolate = BackendEnv.CreateIsolate(nullptr);
+        BackendEnv.Initialize(nullptr, nullptr);
+        MainIsolate = BackendEnv.MainIsolate;
 
         auto Isolate = MainIsolate;
         
         v8::Isolate::Scope Isolatescope(Isolate);
         v8::HandleScope HandleScope(Isolate);
 
-        v8::Local<v8::Context> Context = v8::Context::New(Isolate);
+        v8::Local<v8::Context> Context = BackendEnv.MainContext.Get(Isolate);;
         v8::Context::Scope ContextScope(Context);
         
         MainContext.Reset(Isolate, Context);
 
-        BackendEnv.InitInject(MainIsolate, Context);
         CppObjectMapper.Initialize(Isolate, Context);
         Isolate->SetData(MAPPER_ISOLATE_DATA_POS, static_cast<ICppObjectMapper*>(&CppObjectMapper));
         Isolate->SetData(BACKENDENV_DATA_POS, &BackendEnv);
@@ -754,20 +765,14 @@ struct JSEnv
                 GLogCallback(str.c_str());
             }
         })->GetFunction(Context).ToLocalChecked()).Check();
+        
+        BackendEnv.StartPolling();
     }
     
     ~JSEnv()
     {
-#if WITH_NODEJS
-        {
-            v8::Isolate::Scope IsolateScope(MainIsolate);
-            v8::HandleScope HandleScope(MainIsolate);
-            auto Context = MainContext.Get(MainIsolate);
-            v8::Context::Scope ContextScope(Context);
-            BackendEnv.LogicTick();
-            BackendEnv.StopPolling();
-        }
-#endif
+        BackendEnv.LogicTick();
+        BackendEnv.StopPolling();
 
         CppObjectMapper.UnInitialize(MainIsolate);
         BackendEnv.PathToModuleMap.clear();
@@ -780,14 +785,14 @@ struct JSEnv
         }
 
         MainContext.Reset();
-        BackendEnv.FreeIsolate();
+        BackendEnv.UnInitialize();
     }
     
     v8::Isolate* MainIsolate;
     v8::Global<v8::Context> MainContext;
     
     puerts::FCppObjectMapper CppObjectMapper;
-    puerts::BackendEnv BackendEnv;
+    puerts::FBackendEnv BackendEnv;
 };
 
 }

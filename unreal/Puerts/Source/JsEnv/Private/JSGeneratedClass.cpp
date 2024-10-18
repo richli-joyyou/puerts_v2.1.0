@@ -298,7 +298,14 @@ void UJSGeneratedClass::Restore(UClass* Class)
         {
             if (JGF->Original)
             {
-                JGF->Original->Script = JGF->Script;
+                if (JGF->Script.Num() == 0)
+                {
+                    JGF->Original->Script.Empty();
+                }
+                else
+                {
+                    JGF->Original->Script = JGF->Script;
+                }
                 JGF->Original->SetNativeFunc(JGF->OriginalFunc);
                 Class->AddNativeFunction(*JGF->Original->GetName(), JGF->OriginalFunc);
                 JGF->Original->FunctionFlags = JGF->OriginalFunctionFlags;
@@ -346,6 +353,13 @@ void UJSGeneratedClass::Restore(UClass* Class)
         PP = &(*PP)->Next;
     }
     Class->ClearFunctionMapsCaches();
+    for (TObjectIterator<UClass> It; It; ++It)
+    {
+        if (It->IsChildOf(Class) && !It->HasAnyClassFlags(CLASS_Abstract))
+        {
+            It->ClearFunctionMapsCaches();
+        }
+    }
 }
 
 void UJSGeneratedClass::InitPropertiesFromCustomList(uint8* DataPtr, const uint8* DefaultDataPtr)

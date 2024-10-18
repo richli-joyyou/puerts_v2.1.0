@@ -472,8 +472,29 @@ namespace Puerts.UnitTest
         }
 
         /**
-        * CS侧暂无法处理，判断引用即可
+        * JSObject
         */
+        public JSObject jsObjectTestField = default(JSObject);
+        protected JSObject _jsObjectTestProp = default(JSObject);
+        public JSObject jsObjectTestProp 
+        {
+            get { return _jsObjectTestProp; }
+            set { _jsObjectTestProp = value; }
+        }
+        public static JSObject jsObjectTestFieldStatic = default(JSObject);
+        protected static JSObject _jsObjectTestPropStatic = default(JSObject);
+        public static JSObject jsObjectTestPropStatic
+        {
+            get { return _jsObjectTestPropStatic; }
+            set { _jsObjectTestPropStatic = value; }
+        }
+        public void JSObjectTestCheckMemberValue()
+        {
+            AssertAndPrint("CSJSObjectTestField", jsObjectTestField.Get<string>("puerts") == "niubi");
+            AssertAndPrint("CSJSObjectTestProp", jsObjectTestProp.Get<string>("puerts") == "niubi");
+            AssertAndPrint("CSJSObjectTestFieldStatic", jsObjectTestFieldStatic.Get<string>("puerts") == "niubi");
+            AssertAndPrint("CSJSObjectTestPropStatic", jsObjectTestPropStatic.Get<string>("puerts") == "niubi");
+        }
         public JSObject JSObjectTestPipeLine(JSObject initialValue, Func<JSObject, JSObject> JSValueHandler) 
         {
             AssertAndPrint("CSGetJSObjectArgFromJS", initialValue.Get<string>("puerts") == "niubi");
@@ -499,6 +520,35 @@ namespace Puerts.UnitTest
             var ret = (TestStruct)ReturnAnyTestFunc.Invoke();
             AssertAndPrint("InvokeReturnNativeStructTestFunc", srcValue.value, ret.value);
         }
+    }
+    
+            
+    public class FooVE
+    {
+        public IFoo foo;
+
+        public FooVE()
+        {
+            foo = new FooAccess();
+        }
+        
+        static FooVE _instance;
+
+        public static FooVE Instance()
+        {
+            if (_instance == null) _instance = new FooVE();
+            return _instance;
+        }
+    }
+
+    public interface IFoo
+    {
+        float width { get; }
+    }
+
+    internal class FooAccess : IFoo
+    {
+        float IFoo.width => 125f; // Note the explicit interface `IFoo.`
     }
 
     [TestFixture]
@@ -533,6 +583,27 @@ namespace Puerts.UnitTest
                 })()
             ");
             jsEnv.Tick();
+        }
+        [Test]
+        public void NoNewOnStaticFunction()
+        {
+            var jsEnv = UnitTestEnv.GetEnv();
+            try 
+            {
+                jsEnv.Eval(@"
+                    (function() {
+                        const TestHelper = CS.Puerts.UnitTest.TestHelper;
+                        new TestHelper.GetInstance();
+                    })()
+                ");
+            } 
+            catch(Exception e) 
+            {
+                StringAssert.Contains("not a constructor", e.Message);
+                jsEnv.Tick();
+                return;
+            }
+            throw new Exception("unexpected to reach here");
         }
         [Test]
         public void NumberInstanceTest()
@@ -815,6 +886,13 @@ namespace Puerts.UnitTest
                     });
                     assertAndPrint('JSGetJSObjectReturnFromCS', rJSObject == oJSObject);
 
+                    assertAndPrint('JSGetJSObjectField', testHelper.jsObjectTestField == null);
+                    assertAndPrint('JSGetJSObjectStaticField', TestHelper.jsObjectTestFieldStatic == null);
+                    testHelper.jsObjectTestField = { 'puerts': 'niubi' }
+                    testHelper.jsObjectTestProp = { 'puerts': 'niubi' }
+                    TestHelper.jsObjectTestFieldStatic = { 'puerts': 'niubi' }
+                    TestHelper.jsObjectTestPropStatic = { 'puerts': 'niubi' }
+                    testHelper.JSObjectTestCheckMemberValue();
                 })()
             ");
             jsEnv.Tick();
@@ -848,6 +926,24 @@ namespace Puerts.UnitTest
                 })()
             ");
             Assert.AreEqual("213 1 213", ret);
+            jsEnv.Tick();
+        }
+        
+        [Test]
+        public void AccessExplicitnterfaceImplementation()
+        {
+            var jsEnv = UnitTestEnv.GetEnv();
+
+            var ret = jsEnv.Eval<float>(@"
+                (function() {
+                    const foove = CS.Puerts.UnitTest.FooVE.Instance();
+                    console.log(foove);
+                    console.log(foove.foo);
+                    console.log(foove.foo.width);
+                    return foove.foo.width;
+                })()
+            ");
+            Assert.AreEqual(FooVE.Instance().foo.width, ret);
             jsEnv.Tick();
         }
     }

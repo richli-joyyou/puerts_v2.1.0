@@ -28,20 +28,24 @@
 #include "UObject/WeakFieldPtr.h"
 #endif
 
+PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "libplatform/libplatform.h"
 #include "v8.h"
 #pragma warning(pop)
+PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 #include "NamespaceDef.h"
 
 #include "V8InspectorImpl.h"
 
 #if defined(WITH_NODEJS)
+PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "node.h"
 #include "uv.h"
 #pragma warning(pop)
+PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #endif
 
 #if USE_WASM3
@@ -135,6 +139,8 @@ public:
 public:
     bool IsTypeScriptGeneratedClass(UClass* Class);
 
+    void SetJsTakeRef(UObject* UEObject, FClassWrapper* ClassWrapper);
+
     virtual void Bind(FClassWrapper* ClassWrapper, UObject* UEObject, v8::Local<v8::Object> JSObject) override;
 
     virtual void UnBind(UClass* Class, UObject* UEObject) override;
@@ -210,7 +216,7 @@ public:
 
     virtual bool IsInstanceOf(UStruct* Struct, v8::Local<v8::Object> JsObject) override;
 
-    virtual bool IsInstanceOfCppObject(const void* TypeId, v8::Local<v8::Object> JsObject) override;
+    virtual bool IsInstanceOfCppObject(v8::Isolate* Isolate, const void* TypeId, v8::Local<v8::Object> JsObject) override;
 
     virtual std::weak_ptr<int> GetJsEnvLifeCycleTracker() override;
 
@@ -281,6 +287,8 @@ private:
 
     void UEClassToJSClass(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
+    void SetJsTakeRefInTs(const v8::FunctionCallbackInfo<v8::Value>& Info);
+
     bool GetContainerTypeProperty(v8::Local<v8::Context> Context, v8::Local<v8::Value> Value, PropertyMacro** PropertyPtr);
 
     void NewContainer(const v8::FunctionCallbackInfo<v8::Value>& Info);
@@ -346,8 +354,11 @@ private:
 
     std::unordered_multimap<int, FModuleInfo*>::iterator FindModuleInfo(v8::Local<v8::Module> Module);
 
-    static v8::MaybeLocal<v8::Module> ResolveModuleCallback(
-        v8::Local<v8::Context> Context, v8::Local<v8::String> Specifier, v8::Local<v8::Module> Referrer);
+    static v8::MaybeLocal<v8::Module> ResolveModuleCallback(v8::Local<v8::Context> Context, v8::Local<v8::String> Specifier,
+#if V8_MAJOR_VERSION >= 9
+        v8::Local<v8::FixedArray> ImportAttributes,    // not implement yet
+#endif
+        v8::Local<v8::Module> Referrer);
 #endif
 
     struct ObjectMerger;
@@ -685,7 +696,8 @@ private:
         v8::Global<v8::Function> Callback;
         FUETickDelegateHandle TickerHandle;
     };
-    TSparseArray<FTimerInfo> TimerInfos;
+    uint32_t TimerID = 0;
+    TMap<uint32_t, FTimerInfo> TimerInfos;
 
     FUETickDelegateHandle DelegateProxiesCheckerHandler;
 
