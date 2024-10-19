@@ -1,9 +1,10 @@
 /*
-* Tencent is pleased to support the open source community by making Puerts available.
-* Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
-* Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms.
-* This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
-*/
+ * Tencent is pleased to support the open source community by making Puerts available.
+ * Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+ * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may
+ * be subject to their corresponding license terms. This file is subject to the terms and conditions defined in file 'LICENSE',
+ * which is part of this source code package.
+ */
 #include "BackendEnv.h"
 #include "Log.h"
 #include "PromiseRejectCallback.hpp"
@@ -27,14 +28,14 @@
 #include <sys/types.h>
 #endif
 
-#endif // WITH_NODEJS
+#endif    // WITH_NODEJS
 
 #if defined(WITH_QUICKJS)
 #if !defined(CONFIG_CHECK_JSVALUE) && defined(JS_NAN_BOXING)
 #define JS_INITVAL(s, t, val) s = JS_MKVAL(t, val)
 #define JS_INITPTR(s, t, p) s = JS_MKPTR(t, p)
 #else
-#define JS_INITVAL(s, t, val) s.tag = t, s.u.int32=val
+#define JS_INITVAL(s, t, val) s.tag = t, s.u.int32 = val
 #define JS_INITPTR(s, t, p) s.tag = t, s.u.ptr = p
 #endif
 #endif
@@ -221,7 +222,7 @@ void FBackendEnv::GlobalPrepare()
 #if defined(WITH_NODEJS)
         int Argc = 2;
         char* ArgvIn[] = {"puerts", "--no-harmony-top-level-await"};
-        char ** Argv = uv_setup_args(Argc, ArgvIn);
+        char** Argv = uv_setup_args(Argc, ArgvIn);
         Args = new std::vector<std::string>(Argv, Argv + Argc);
         ExecArgs = new std::vector<std::string>();
         Errors = new std::vector<std::string>();
@@ -257,8 +258,7 @@ void FBackendEnv::Initialize(void* external_quickjs_runtime, void* external_quic
     // PLog(Log, "[PuertsDLL][JSEngineWithNode]isolate");
 
     auto Platform = static_cast<node::MultiIsolatePlatform*>(GPlatform.get());
-    MainIsolate = node::NewIsolate(NodeArrayBufferAllocator.get(), &NodeUVLoop,
-        Platform);
+    MainIsolate = node::NewIsolate(NodeArrayBufferAllocator.get(), &NodeUVLoop, Platform);
 
     MainIsolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kAuto);
 #else
@@ -266,9 +266,10 @@ void FBackendEnv::Initialize(void* external_quickjs_runtime, void* external_quic
     // 初始化Isolate和DefaultContext
     CreateParams = new v8::Isolate::CreateParams();
     CreateParams->array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-    
+
 #if WITH_QUICKJS
-    MainIsolate = (external_quickjs_runtime == nullptr) ? v8::Isolate::New(*CreateParams) : v8::Isolate::New(external_quickjs_runtime);
+    MainIsolate =
+        (external_quickjs_runtime == nullptr) ? v8::Isolate::New(*CreateParams) : v8::Isolate::New(external_quickjs_runtime);
 #else
     MainIsolate = v8::Isolate::New(*CreateParams);
 #endif
@@ -283,37 +284,41 @@ void FBackendEnv::Initialize(void* external_quickjs_runtime, void* external_quic
 #if defined(WITH_NODEJS)
     v8::Local<v8::Context> Context = node::NewContext(Isolate);
 #elif defined(WITH_QUICKJS)
-    v8::Local<v8::Context> Context = (external_quickjs_runtime && external_quickjs_context) ? v8::Context::New(Isolate, external_quickjs_context) : v8::Context::New(Isolate);
+    v8::Local<v8::Context> Context = (external_quickjs_runtime && external_quickjs_context)
+                                         ? v8::Context::New(Isolate, external_quickjs_context)
+                                         : v8::Context::New(Isolate);
 #else
     v8::Local<v8::Context> Context = v8::Context::New(Isolate);
 #endif
     v8::Context::Scope ContextScope(Context);
     MainContext.Reset(Isolate, Context);
-    
+
     v8::Local<v8::Object> Global = Context->Global();
 #if defined(WITH_NODEJS)
     auto strConsole = v8::String::NewFromUtf8(Isolate, "console").ToLocalChecked();
     v8::Local<v8::Value> Console = Global->Get(Context, strConsole).ToLocalChecked();
 
-    NodeIsolateData = node::CreateIsolateData(Isolate, &NodeUVLoop, Platform, NodeArrayBufferAllocator.get()); // node::FreeIsolateData
+    NodeIsolateData =
+        node::CreateIsolateData(Isolate, &NodeUVLoop, Platform, NodeArrayBufferAllocator.get());    // node::FreeIsolateData
 
-    NodeEnv = CreateEnvironment(NodeIsolateData, Context, *Args, *ExecArgs, (node::EnvironmentFlags::Flags)(node::EnvironmentFlags::kOwnsProcessState | node::EnvironmentFlags::kNoRegisterESMLoader | node::EnvironmentFlags::kNoCreateInspector));
+    NodeEnv = CreateEnvironment(NodeIsolateData, Context, *Args, *ExecArgs,
+        (node::EnvironmentFlags::Flags)(node::EnvironmentFlags::kOwnsProcessState | node::EnvironmentFlags::kNoRegisterESMLoader |
+                                        node::EnvironmentFlags::kNoCreateInspector));
 
     Global->Set(Context, strConsole, Console).Check();
 
-    v8::MaybeLocal<v8::Value> LoadenvRet = node::LoadEnvironment(
-        NodeEnv,
+    v8::MaybeLocal<v8::Value> LoadenvRet = node::LoadEnvironment(NodeEnv,
         "const publicRequire ="
         "  require('module').createRequire(process.cwd() + '/');"
         "globalThis.require = publicRequire;");
 
-    if (LoadenvRet.IsEmpty())  // There has been a JS exception.
+    if (LoadenvRet.IsEmpty())    // There has been a JS exception.
     {
         return;
     }
 #endif
-    
-    if (external_quickjs_runtime == nullptr) 
+
+    if (external_quickjs_runtime == nullptr)
     {
         Isolate->SetPromiseRejectCallback(&PromiseRejectCallback<FBackendEnv>);
 
@@ -322,28 +327,35 @@ void FBackendEnv::Initialize(void* external_quickjs_runtime, void* external_quic
         Isolate->SetHostImportModuleDynamicallyCallback(&esmodule::HostImportModuleDynamically);
 #endif
 
-        Global->Set(Context, v8::String::NewFromUtf8(Isolate, "__tgjsSetPromiseRejectCallback").ToLocalChecked(), v8::FunctionTemplate::New(Isolate, &SetPromiseRejectCallback<FBackendEnv>)->GetFunction(Context).ToLocalChecked()).Check();
+        Global
+            ->Set(Context, v8::String::NewFromUtf8(Isolate, "__tgjsSetPromiseRejectCallback").ToLocalChecked(),
+                v8::FunctionTemplate::New(Isolate, &SetPromiseRejectCallback<FBackendEnv>)->GetFunction(Context).ToLocalChecked())
+            .Check();
     }
-    
+
 #if defined(WITH_QUICKJS)
     JsFileLoader = JS_Undefined();
     JsFileNormalize = JS_Undefined();
-    
+
     auto rt = Isolate->runtime_;
     auto ctx = Context->context_;
     JS_SetModuleLoaderFunc(rt, esmodule::module_normalize, esmodule::js_module_loader, this);
-    
+
     JSValue FuncData;
-    JS_INITPTR(FuncData, JS_TAG_EXTERNAL, (void*)this);
+    JS_INITPTR(FuncData, JS_TAG_EXTERNAL, (void*) this);
     JSValue Func = JS_NewCFunctionData(ctx, esmodule::ExecuteModule, 0, 0, 1, &FuncData);
-    
+
     JSValue G = JS_GetGlobalObject(ctx);
     JS_SetPropertyStr(ctx, G, EXECUTEMODULEGLOBANAME, Func);
     JS_FreeValue(ctx, G);
 #else
-    Global->Set(Context, v8::String::NewFromUtf8(Isolate, EXECUTEMODULEGLOBANAME).ToLocalChecked(), v8::FunctionTemplate::New(Isolate, esmodule::ExecuteModule)->GetFunction(Context).ToLocalChecked()).Check();
+    Global
+        ->Set(Context, v8::String::NewFromUtf8(Isolate, EXECUTEMODULEGLOBANAME).ToLocalChecked(),
+            v8::FunctionTemplate::New(Isolate, esmodule::ExecuteModule)->GetFunction(Context).ToLocalChecked())
+        .Check();
     Global->Set(Context, v8::String::NewFromUtf8(Isolate, "v8").ToLocalChecked(), GetV8Extras(Isolate, Context));
 #endif
+    _platform = GPlatform.get();
 }
 
 void FBackendEnv::UnInitialize()
@@ -440,15 +452,15 @@ bool FBackendEnv::InspectorTick()
 bool FBackendEnv::ClearModuleCache(v8::Isolate* Isolate, v8::Local<v8::Context> Context, const char* Path)
 {
     std::string key(Path);
-    if (key.size() == 0) 
+    if (key.size() == 0)
     {
         PathToModuleMap.clear();
         return true;
-    } 
-    else 
+    }
+    else
     {
         auto finder = PathToModuleMap.find(key);
-        if (finder != PathToModuleMap.end()) 
+        if (finder != PathToModuleMap.end())
         {
             PathToModuleMap.erase(key);
 #if !WITH_QUICKJS
@@ -465,7 +477,7 @@ bool FBackendEnv::ClearModuleCache(v8::Isolate* Isolate, v8::Local<v8::Context> 
 }
 
 #if defined(WITH_QUICKJS)
-char* FBackendEnv::ResolveQjsModule(JSContext *ctx, const char *base_name, const char *name, bool throwIfFail)
+char* FBackendEnv::ResolveQjsModule(JSContext* ctx, const char* base_name, const char* name, bool throwIfFail)
 {
     if (JS_IsUndefined(JsFileNormalize))
     {
@@ -484,8 +496,8 @@ char* FBackendEnv::ResolveQjsModule(JSContext *ctx, const char *base_name, const
         Args[0] = JS_NewString(ctx, name);
         Args[1] = JS_NewString(ctx, base_name);
         JSValue Resolved = JS_Call(ctx, JsFileNormalize, JS_Undefined(), 2, &Args[0]);
-        JS_FreeValue(ctx,  Args[1]);
-        JS_FreeValue(ctx,  Args[0]);
+        JS_FreeValue(ctx, Args[1]);
+        JS_FreeValue(ctx, Args[0]);
         if (!JS_IsException(Resolved))
         {
             const char* ResolvedName = JS_ToCString(ctx, Resolved);
@@ -502,27 +514,28 @@ char* FBackendEnv::ResolveQjsModule(JSContext *ctx, const char *base_name, const
             }
         }
     }
-    
+
     return nullptr;
 }
 
-char* FBackendEnv::NormalizeModuleName(JSContext *ctx, const char *base_name, const char *name)
+char* FBackendEnv::NormalizeModuleName(JSContext* ctx, const char* base_name, const char* name)
 {
     char* ret = ResolveQjsModule(ctx, base_name, name, true);
-    
-    return ret ? ret : js_strdup(ctx, "");;
+
+    return ret ? ret : js_strdup(ctx, "");
+    ;
 }
 
-//static bool StringIsNullOrEmpty(const char * str)
+// static bool StringIsNullOrEmpty(const char * str)
 //{
-//    return str == nullptr || str[0] == '\0';
-//}
+//     return str == nullptr || str[0] == '\0';
+// }
 
-JSModuleDef* FBackendEnv::LoadModule(JSContext* ctx, const char *name)
+JSModuleDef* FBackendEnv::LoadModule(JSContext* ctx, const char* name)
 {
-    //if (StringIsNullOrEmpty(name))
+    // if (StringIsNullOrEmpty(name))
     //{
-        // exception from Normalize
+    //  exception from Normalize
     //    return nullptr;
     //}
     auto Ex = JS_GetException(ctx);
@@ -537,45 +550,45 @@ JSModuleDef* FBackendEnv::LoadModule(JSContext* ctx, const char *name)
     {
         return Iter->second;
     }
-    
+
     if (JS_IsUndefined(JsFileLoader))
     {
         JSValue G = JS_GetGlobalObject(ctx);
         JsFileLoader = JS_GetPropertyStr(ctx, G, "__puer_resolve_module_content__");
         JS_FreeValue(ctx, G);
-        
+
         if (JS_IsUndefined(JsFileLoader))
         {
             JS_ThrowReferenceError(ctx, "could not load module loader");
             return nullptr;
         }
     }
-    
+
     JSValue Url = JS_NewString(ctx, name);
     JSValue Context = JS_Call(ctx, JsFileLoader, JS_Undefined(), 1, &Url);
     JS_FreeValue(ctx, Url);
-    
+
     if (JS_IsException(Context))
     {
         return nullptr;
     }
-    
+
     if (!JS_IsString(Context))
     {
         JS_FreeValue(ctx, Context);
         JS_ThrowReferenceError(ctx, "could not load module filename '%s'", name);
         return nullptr;
     }
-    
-    const char * Src = JS_ToCString(ctx, Context);
+
+    const char* Src = JS_ToCString(ctx, Context);
     JSValue EvalRet = JS_Eval(ctx, Src, strlen(Src), name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-    
+
     if (JS_IsException(EvalRet))
     {
         return nullptr;
     }
-    
-    auto Ret = (JSModuleDef *)JS_VALUE_GET_PTR(EvalRet);
+
+    auto Ret = (JSModuleDef*) JS_VALUE_GET_PTR(EvalRet);
 
     auto Meta = JS_GetImportMeta(ctx, Ret);
     std::string str = name;
@@ -584,20 +597,20 @@ JSModuleDef* FBackendEnv::LoadModule(JSContext* ctx, const char *name)
     JS_FreeValue(ctx, Meta);
 
     PathToModuleMap[name] = Ret;
-    
+
     JS_FreeCString(ctx, Src);
     JS_FreeValue(ctx, Context);
-    
+
     return Ret;
 }
 
-JSValue esmodule::ExecuteModule(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv, int magic, JSValue *func_data)
+JSValue esmodule::ExecuteModule(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic, JSValue* func_data)
 {
     if (argc == 1)
     {
-        const char * Specifier = JS_ToCString(ctx, argv[0]);
-        FBackendEnv* Backend = (FBackendEnv*)(JS_VALUE_GET_PTR(func_data[0]));
-        char *Path = Backend->ResolveQjsModule(ctx, "", Specifier, true);
+        const char* Specifier = JS_ToCString(ctx, argv[0]);
+        FBackendEnv* Backend = (FBackendEnv*) (JS_VALUE_GET_PTR(func_data[0]));
+        char* Path = Backend->ResolveQjsModule(ctx, "", Specifier, true);
         if (!Path)
         {
             return JS_Exception();
@@ -611,7 +624,8 @@ JSValue esmodule::ExecuteModule(JSContext *ctx, JSValueConst this_val, int argc,
         }
         auto Func = JS_DupModule(ctx, EntryModule);
         auto EvalRet = JS_EvalFunction(ctx, Func);
-        if (JS_IsException(EvalRet)) {
+        if (JS_IsException(EvalRet))
+        {
             return EvalRet;
         }
 #if defined(JS_EVAL_FLAG_ASYNC)
@@ -637,50 +651,44 @@ JSValue esmodule::ExecuteModule(JSContext *ctx, JSValueConst this_val, int argc,
             return Namespace;
         }
     }
-    
+
     return JS_Undefined();
 }
 
-JSModuleDef* esmodule::js_module_loader(
-    JSContext* ctx, const char *name, void *opaque
-) 
+JSModuleDef* esmodule::js_module_loader(JSContext* ctx, const char* name, void* opaque)
 {
     return static_cast<FBackendEnv*>(opaque)->LoadModule(ctx, name);
 }
 
-char* esmodule::module_normalize(
-    JSContext *ctx, const char *base_name, const char *name, void* opaque
-)
+char* esmodule::module_normalize(JSContext* ctx, const char* base_name, const char* name, void* opaque)
 {
     return static_cast<FBackendEnv*>(opaque)->NormalizeModuleName(ctx, base_name, name);
 }
 
 #else
-    
+
 v8::MaybeLocal<v8::Value> FBackendEnv::ResolvePath(
-    v8::Isolate* Isolate,
-    v8::Local<v8::Context> Context,
-    v8::Local<v8::Value> Specifier,
-    v8::Local<v8::Value> ReferrerName
-)
+    v8::Isolate* Isolate, v8::Local<v8::Context> Context, v8::Local<v8::Value> Specifier, v8::Local<v8::Value> ReferrerName)
 {
     v8::Local<v8::Value> Args[2] = {Specifier, ReferrerName};
 
-    v8::Local<v8::Function> URLResolveFunction = v8::Local<v8::Function>::Cast(Context->Global()->Get(Context, v8::String::NewFromUtf8(Isolate, "__puer_resolve_module_url__").ToLocalChecked()).ToLocalChecked());
+    v8::Local<v8::Function> URLResolveFunction = v8::Local<v8::Function>::Cast(
+        Context->Global()
+            ->Get(Context, v8::String::NewFromUtf8(Isolate, "__puer_resolve_module_url__").ToLocalChecked())
+            .ToLocalChecked());
     return URLResolveFunction->Call(Context, Context->Global(), 2, Args);
 }
 
 v8::MaybeLocal<v8::Value> FBackendEnv::ReadFile(
-    v8::Isolate* Isolate,
-    v8::Local<v8::Context> Context,
-    v8::Local<v8::Value> URL,
-    std::string &pathForDebug
-)
+    v8::Isolate* Isolate, v8::Local<v8::Context> Context, v8::Local<v8::Value> URL, std::string& pathForDebug)
 {
     v8::Local<v8::Array> pathForDebugRef = v8::Array::New(Isolate, 0);
     v8::Local<v8::Value> Args[2] = {URL, pathForDebugRef};
 
-    v8::Local<v8::Function> ModuleReadFunction = v8::Local<v8::Function>::Cast(Context->Global()->Get(Context, v8::String::NewFromUtf8(Isolate, "__puer_resolve_module_content__").ToLocalChecked()).ToLocalChecked());
+    v8::Local<v8::Function> ModuleReadFunction = v8::Local<v8::Function>::Cast(
+        Context->Global()
+            ->Get(Context, v8::String::NewFromUtf8(Isolate, "__puer_resolve_module_content__").ToLocalChecked())
+            .ToLocalChecked());
 
     v8::MaybeLocal<v8::Value> maybeRet = ModuleReadFunction->Call(Context, Context->Global(), 2, Args);
 
@@ -695,21 +703,21 @@ v8::MaybeLocal<v8::Value> FBackendEnv::ReadFile(
     return maybeRet;
 }
 
-v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(v8::Isolate* isolate, v8::Local<v8::Context> context,
-    v8::Local<v8::String> absolute_file_path)
+v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(
+    v8::Isolate* isolate, v8::Local<v8::Context> context, v8::Local<v8::String> absolute_file_path)
 {
     std::string absolute_file_path_str = *v8::String::Utf8Value(isolate, absolute_file_path);
-    //fprintf(stdout, "o fetch:%s\n", absolute_file_path_str.c_str());
-    //fprintf(stderr, "e fetch:%s\n", absolute_file_path_str.c_str());
+    // fprintf(stdout, "o fetch:%s\n", absolute_file_path_str.c_str());
+    // fprintf(stderr, "e fetch:%s\n", absolute_file_path_str.c_str());
     auto cached_module = PathToModuleMap.find(absolute_file_path_str);
-    if (cached_module!= PathToModuleMap.end())
+    if (cached_module != PathToModuleMap.end())
     {
         return cached_module->second.Get(isolate);
     }
     std::string pathForDebug;
-    
+
     v8::Local<v8::Value> source_text;
-    
+
     if (!ReadFile(isolate, context, absolute_file_path, pathForDebug).ToLocal(&source_text))
     {
         return v8::MaybeLocal<v8::Module>();
@@ -720,7 +728,7 @@ v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(v8::Isolate* isolate, v8
         return v8::MaybeLocal<v8::Module>();
     }
     v8::Local<v8::String> script_url = absolute_file_path;
-    if (pathForDebug.size() > 0 )
+    if (pathForDebug.size() > 0)
     {
         script_url = FV8Utils::V8String(isolate, pathForDebug.c_str());
     }
@@ -741,7 +749,7 @@ v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(v8::Isolate* isolate, v8
     info->Module.Reset(isolate, module);
 #if V8_94_OR_NEWER
     int script_id = module->ScriptId();
-#else 
+#else
     int script_id = module->GetIdentityHash();
 #endif
     ScriptIdToModuleInfo.emplace(script_id, info);
@@ -753,8 +761,7 @@ v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(v8::Isolate* isolate, v8
     v8::Local<v8::FixedArray> module_requests = module->GetModuleRequests();
     for (int i = 0, length = module_requests->Length(); i < length; ++i)
     {
-        v8::Local<v8::ModuleRequest> module_request =
-            module_requests->Get(context, i).As<v8::ModuleRequest>();
+        v8::Local<v8::ModuleRequest> module_request = module_requests->Get(context, i).As<v8::ModuleRequest>();
         v8::Local<v8::String> request_specifier = module_request->GetSpecifier();
 #else
     for (int i = 0, length = module->GetModuleRequestsLength(); i < length; i++)
@@ -773,7 +780,7 @@ v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(v8::Isolate* isolate, v8
             load_ref_modules_fail = true;
             break;
         }
-        
+
         auto request_absolute_file_path = resolved_path.As<v8::String>();
         std::string request_absolute_file_path_str = *v8::String::Utf8Value(isolate, request_absolute_file_path);
         v8::Local<v8::Module> request_module;
@@ -784,7 +791,7 @@ v8::MaybeLocal<v8::Module> FBackendEnv::FetchModuleTree(v8::Isolate* isolate, v8
         }
         info->ResolveCache[*v8::String::Utf8Value(isolate, request_specifier)] = v8::Global<v8::Module>(isolate, request_module);
     }
-    
+
     if (load_ref_modules_fail)
     {
         // for issue: https://github.com/Tencent/puerts/issues/1670
@@ -802,7 +809,7 @@ std::unordered_multimap<int, FBackendEnv::FModuleInfo*>::iterator FBackendEnv::F
 {
 #if V8_94_OR_NEWER
     int script_id = module->ScriptId();
-#else 
+#else
     int script_id = module->GetIdentityHash();
 #endif
     auto range = ScriptIdToModuleInfo.equal_range(script_id);
@@ -816,8 +823,7 @@ std::unordered_multimap<int, FBackendEnv::FModuleInfo*>::iterator FBackendEnv::F
     return ScriptIdToModuleInfo.end();
 }
 
-v8::MaybeLocal<v8::Module> FBackendEnv::ResolveModuleCallback(
-    v8::Local<v8::Context> context, v8::Local<v8::String> specifier, 
+v8::MaybeLocal<v8::Module> FBackendEnv::ResolveModuleCallback(v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
 #if V8_94_OR_NEWER
     v8::Local<v8::FixedArray> import_attributes,    // not implement yet
 #endif
@@ -826,7 +832,7 @@ v8::MaybeLocal<v8::Module> FBackendEnv::ResolveModuleCallback(
     auto isolate = context->GetIsolate();
     auto self = FBackendEnv::Get(isolate);
     const auto module_info_iter = self->FindModuleInfo(referrer);
-    if(module_info_iter == self->ScriptIdToModuleInfo.end())
+    if (module_info_iter == self->ScriptIdToModuleInfo.end())
     {
         return v8::MaybeLocal<v8::Module>();
     }
@@ -835,11 +841,12 @@ v8::MaybeLocal<v8::Module> FBackendEnv::ResolveModuleCallback(
     {
         return v8::MaybeLocal<v8::Module>();
     }
-    //fprintf(stderr, "e m:%s, e:%d\n", *(v8::String::Utf8Value(isolate, specifier)), ref_module_iter != module_info_iter->second->ResolveCache.end());
+    // fprintf(stderr, "e m:%s, e:%d\n", *(v8::String::Utf8Value(isolate, specifier)), ref_module_iter !=
+    // module_info_iter->second->ResolveCache.end());
     return ref_module_iter->second.Get(isolate);
 }
 
-void esmodule::ExecuteModule(const v8::FunctionCallbackInfo<v8::Value>& info) 
+void esmodule::ExecuteModule(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
@@ -857,26 +864,26 @@ void esmodule::ExecuteModule(const v8::FunctionCallbackInfo<v8::Value>& info)
         FV8Utils::ThrowException(isolate, "resolved_path is not a string!");
         return;
     }
-    
+
     v8::Local<v8::Module> root_module;
 
     if (!backend_env->FetchModuleTree(isolate, context, resolved_path.As<v8::String>()).ToLocal(&root_module))
     {
         return;
     }
-    
+
     v8::MaybeLocal<v8::Value> maybe_result;
     if (root_module->InstantiateModule(context, FBackendEnv::ResolveModuleCallback).FromMaybe(false))
     {
         maybe_result = root_module->Evaluate(context);
     }
-    
+
     v8::Local<v8::Value> result;
     if (!maybe_result.ToLocal(&result))
     {
         return;
     }
-    
+
     if (result->IsPromise())
     {
         v8::Local<v8::Promise> result_promise = result.As<v8::Promise>();
@@ -885,15 +892,14 @@ void esmodule::ExecuteModule(const v8::FunctionCallbackInfo<v8::Value>& info)
             isolate->ThrowException(result_promise->Result());
         }
     }
-    
+
     info.GetReturnValue().Set(root_module->GetModuleNamespace());
 }
 
 struct ModuleResolutionData
 {
-    ModuleResolutionData(v8::Isolate* isolate_, v8::Local<v8::Value> module_namespace_,
-        v8::Local<v8::Promise::Resolver> resolver_)
-          : isolate(isolate_)
+    ModuleResolutionData(v8::Isolate* isolate_, v8::Local<v8::Value> module_namespace_, v8::Local<v8::Promise::Resolver> resolver_)
+        : isolate(isolate_)
     {
         module_namespace.Reset(isolate, module_namespace_);
         resolver.Reset(isolate, resolver_);
@@ -906,39 +912,34 @@ struct ModuleResolutionData
 
 static void ModuleResolutionSuccessCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
-    std::unique_ptr<ModuleResolutionData> module_resolution_data( 
+    std::unique_ptr<ModuleResolutionData> module_resolution_data(
         static_cast<ModuleResolutionData*>(info.Data().As<v8::External>()->Value()));
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
-    v8::Local<v8::Promise::Resolver> resolver(
-        module_resolution_data->resolver.Get(isolate));
-    v8::Local<v8::Value> module_namespace(
-          module_resolution_data->module_namespace.Get(isolate));
-    
+    v8::Local<v8::Promise::Resolver> resolver(module_resolution_data->resolver.Get(isolate));
+    v8::Local<v8::Value> module_namespace(module_resolution_data->module_namespace.Get(isolate));
+
     resolver->Resolve(context, module_namespace).ToChecked();
 }
 
 static void ModuleResolutionFailureCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
-    std::unique_ptr<ModuleResolutionData> module_resolution_data( 
+    std::unique_ptr<ModuleResolutionData> module_resolution_data(
         static_cast<ModuleResolutionData*>(info.Data().As<v8::External>()->Value()));
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
- 
-    v8::Local<v8::Promise::Resolver> resolver(
-        module_resolution_data->resolver.Get(isolate));
-    v8::Local<v8::Value> module_namespace(
-          module_resolution_data->module_namespace.Get(isolate));
+
+    v8::Local<v8::Promise::Resolver> resolver(module_resolution_data->resolver.Get(isolate));
+    v8::Local<v8::Value> module_namespace(module_resolution_data->module_namespace.Get(isolate));
 
     resolver->Reject(context, info[0]).ToChecked();
 }
 
 struct DynamicImportData
 {
-    DynamicImportData(v8::Isolate* isolate_, v8::Local<v8::String> referrer_,
-                    v8::Local<v8::String> specifier_,
-                    v8::Local<v8::Promise::Resolver> resolver_)
+    DynamicImportData(v8::Isolate* isolate_, v8::Local<v8::String> referrer_, v8::Local<v8::String> specifier_,
+        v8::Local<v8::Promise::Resolver> resolver_)
         : isolate(isolate_)
     {
         referrer.Reset(isolate, referrer_);
@@ -954,19 +955,18 @@ struct DynamicImportData
 
 static void DoHostImportModuleDynamically(void* import_data_)
 {
-    std::unique_ptr<DynamicImportData> import_data(
-        static_cast<DynamicImportData*>(import_data_));
-      
+    std::unique_ptr<DynamicImportData> import_data(static_cast<DynamicImportData*>(import_data_));
+
     v8::Isolate* isolate(import_data->isolate);
     auto backend_env = FBackendEnv::Get(isolate);
     v8::HandleScope handle_scope(isolate);
     v8::Local<v8::Context> context = backend_env->MainContext.Get(isolate);
     v8::Context::Scope context_scope(context);
-    
+
     v8::Local<v8::String> referrer(import_data->referrer.Get(isolate));
     v8::Local<v8::String> specifier(import_data->specifier.Get(isolate));
     v8::Local<v8::Promise::Resolver> resolver(import_data->resolver.Get(isolate));
-    
+
     v8::TryCatch try_catch(isolate);
     v8::Local<v8::Value> resolved_path;
     if (!backend_env->ResolvePath(isolate, context, specifier, referrer).ToLocal(&resolved_path))
@@ -977,42 +977,42 @@ static void DoHostImportModuleDynamically(void* import_data_)
     std::string absolute_file_path_str = *v8::String::Utf8Value(isolate, resolved_path);
     v8::Local<v8::Module> root_module;
     auto cached_module = backend_env->PathToModuleMap.find(absolute_file_path_str);
-    if (cached_module!= backend_env->PathToModuleMap.end())
+    if (cached_module != backend_env->PathToModuleMap.end())
     {
         root_module = cached_module->second.Get(isolate);
     }
-    else if(!backend_env->FetchModuleTree(isolate, context, resolved_path.As<v8::String>()).ToLocal(&root_module))
+    else if (!backend_env->FetchModuleTree(isolate, context, resolved_path.As<v8::String>()).ToLocal(&root_module))
     {
         resolver->Reject(context, try_catch.Exception());
         return;
     }
-    
+
     v8::MaybeLocal<v8::Value> maybe_result;
     if (root_module->InstantiateModule(context, FBackendEnv::ResolveModuleCallback).FromMaybe(false))
     {
         maybe_result = root_module->Evaluate(context);
     }
-    
+
     v8::Local<v8::Value> result;
     if (!maybe_result.ToLocal(&result))
     {
         resolver->Reject(context, try_catch.Exception());
         return;
     }
-    
+
     if (result->IsPromise())
     {
         v8::Local<v8::Promise> result_promise = result.As<v8::Promise>();
         auto module_resolution_data = new ModuleResolutionData(isolate, root_module->GetModuleNamespace(), resolver);
         v8::Local<v8::External> edata = v8::External::New(isolate, module_resolution_data);
         v8::Local<v8::Function> callback_success;
-        if(!v8::Function::New(context, ModuleResolutionSuccessCallback, edata).ToLocal(&callback_success))
+        if (!v8::Function::New(context, ModuleResolutionSuccessCallback, edata).ToLocal(&callback_success))
         {
             resolver->Reject(context, try_catch.Exception());
             return;
         }
         v8::Local<v8::Function> callback_failure;
-        if(!v8::Function::New(context, ModuleResolutionFailureCallback, edata).ToLocal(&callback_failure))
+        if (!v8::Function::New(context, ModuleResolutionFailureCallback, edata).ToLocal(&callback_failure))
         {
             resolver->Reject(context, try_catch.Exception());
             return;
@@ -1026,13 +1026,14 @@ static void DoHostImportModuleDynamically(void* import_data_)
 }
 
 #if V8_MAJOR_VERSION >= 10
-v8::MaybeLocal<v8::Promise> esmodule::HostImportModuleDynamically(v8::Local<v8::Context> context, v8::Local<v8::Data> host_defined_options,
-    v8::Local<v8::Value> resource_name, v8::Local<v8::String> specifier, v8::Local<v8::FixedArray> import_assertions)
+v8::MaybeLocal<v8::Promise> esmodule::HostImportModuleDynamically(v8::Local<v8::Context> context,
+    v8::Local<v8::Data> host_defined_options, v8::Local<v8::Value> resource_name, v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions)
 {
     v8::Local<v8::Value> referrer_name = resource_name;
 #else
 v8::MaybeLocal<v8::Promise> esmodule::HostImportModuleDynamically(
-    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer, v8::Local<v8::String> specifier) 
+    v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> referrer, v8::Local<v8::String> specifier)
 {
     v8::Local<v8::Value> referrer_name = referrer->GetResourceName();
 #endif
@@ -1040,38 +1041,35 @@ v8::MaybeLocal<v8::Promise> esmodule::HostImportModuleDynamically(
     v8::HandleScope handle_scope(isolate);
     v8::Context::Scope context_scope(context);
     v8::Local<v8::Promise::Resolver> resolver;
-    if (!v8::Promise::Resolver::New(context).ToLocal(&resolver)) return v8::MaybeLocal<v8::Promise> {};
-    
-    DynamicImportData* data = new DynamicImportData(
-        isolate, v8::Local<v8::String>::Cast(referrer_name), specifier,
-        resolver);
+    if (!v8::Promise::Resolver::New(context).ToLocal(&resolver))
+        return v8::MaybeLocal<v8::Promise>{};
+
+    DynamicImportData* data = new DynamicImportData(isolate, v8::Local<v8::String>::Cast(referrer_name), specifier, resolver);
     isolate->EnqueueMicrotask(DoHostImportModuleDynamically, data);
 
     return resolver->GetPromise();
 }
 
-void esmodule::HostInitializeImportMetaObject(v8::Local<v8::Context> Context, v8::Local<v8::Module> Module, v8::Local<v8::Object> meta)
+void esmodule::HostInitializeImportMetaObject(
+    v8::Local<v8::Context> Context, v8::Local<v8::Module> Module, v8::Local<v8::Object> meta)
 {
     v8::Isolate* Isolate = Context->GetIsolate();
     FBackendEnv* mm = FBackendEnv::Get(Isolate);
 
 #if V8_94_OR_NEWER
     auto iter = mm->ScriptIdToPathMap.find(Module->ScriptId());
-#else 
+#else
     auto iter = mm->ScriptIdToPathMap.find(Module->GetIdentityHash());
 #endif
-    if (iter != mm->ScriptIdToPathMap.end()) 
+    if (iter != mm->ScriptIdToPathMap.end())
     {
-        meta->CreateDataProperty(
-            Context, 
-            v8::String::NewFromUtf8(Isolate, "url").ToLocalChecked(),
-            v8::String::NewFromUtf8(Isolate, ("puer:" + iter->second).c_str()).ToLocalChecked()
-        ).ToChecked();
+        meta->CreateDataProperty(Context, v8::String::NewFromUtf8(Isolate, "url").ToLocalChecked(),
+                v8::String::NewFromUtf8(Isolate, ("puer:" + iter->second).c_str()).ToLocalChecked())
+            .ToChecked();
     }
 }
 
 #endif
-
 
 std::string FBackendEnv::GetJSStackTrace()
 {
@@ -1110,12 +1108,11 @@ std::string FBackendEnv::GetJSStackTrace()
 
 #if !defined(WITH_QUICKJS)
 
-#define SetNumericStatProperty(name)                                           \
-  target                                                                       \
-      ->Set(context,                                                           \
-            v8::String::NewFromUtf8(isolate, #name).ToLocalChecked(),          \
-            v8::Number::New(isolate, static_cast<double>(stat.name())))        \
-      .Check();
+#define SetNumericStatProperty(name)                                             \
+    target                                                                       \
+        ->Set(context, v8::String::NewFromUtf8(isolate, #name).ToLocalChecked(), \
+            v8::Number::New(isolate, static_cast<double>(stat.name())))          \
+        .Check();
 
 void GetHeapStatistics(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
@@ -1124,7 +1121,7 @@ void GetHeapStatistics(const v8::FunctionCallbackInfo<v8::Value>& info)
     v8::Local<v8::Object> target = v8::Object::New(isolate);
     v8::HeapStatistics stat;
     isolate->GetHeapStatistics(&stat);
-    
+
     SetNumericStatProperty(total_heap_size);
     SetNumericStatProperty(total_heap_size_executable);
     SetNumericStatProperty(total_physical_size);
@@ -1139,7 +1136,7 @@ void GetHeapStatistics(const v8::FunctionCallbackInfo<v8::Value>& info)
     SetNumericStatProperty(number_of_native_contexts);
     SetNumericStatProperty(number_of_detached_contexts);
     SetNumericStatProperty(does_zap_garbage);
-    
+
     info.GetReturnValue().Set(target);
 }
 
@@ -1148,18 +1145,18 @@ void GetHeapSpaceStatistics(const v8::FunctionCallbackInfo<v8::Value>& info)
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
     v8::Local<v8::Object> ret = v8::Object::New(isolate);
-    
+
     for (size_t i = 0; i < isolate->NumberOfHeapSpaces(); i++)
     {
         v8::HeapSpaceStatistics stat;
         isolate->GetHeapSpaceStatistics(&stat, i);
         v8::Local<v8::Object> target = v8::Object::New(isolate);
-        
+
         SetNumericStatProperty(space_size);
         SetNumericStatProperty(space_used_size);
         SetNumericStatProperty(space_available_size);
         SetNumericStatProperty(physical_space_size);
-        
+
         ret->Set(context, v8::String::NewFromUtf8(isolate, stat.space_name()).ToLocalChecked(), target).Check();
     }
     info.GetReturnValue().Set(ret);
@@ -1170,11 +1167,13 @@ void GetHeapSpaceStatistics(const v8::FunctionCallbackInfo<v8::Value>& info)
 v8::Local<v8::Object> FBackendEnv::GetV8Extras(v8::Isolate* isolate, v8::Local<v8::Context> context)
 {
     v8::Local<v8::Object> ret = v8::Object::New(isolate);
-    ret->Set(context, v8::String::NewFromUtf8(isolate, "getHeapStatistics").ToLocalChecked(), 
-        v8::Function::New(context, GetHeapStatistics).ToLocalChecked()).Check();
-    ret->Set(context, v8::String::NewFromUtf8(isolate, "getHeapSpaceStatistics").ToLocalChecked(), 
-        v8::Function::New(context, GetHeapSpaceStatistics).ToLocalChecked()).Check();
+    ret->Set(context, v8::String::NewFromUtf8(isolate, "getHeapStatistics").ToLocalChecked(),
+           v8::Function::New(context, GetHeapStatistics).ToLocalChecked())
+        .Check();
+    ret->Set(context, v8::String::NewFromUtf8(isolate, "getHeapSpaceStatistics").ToLocalChecked(),
+           v8::Function::New(context, GetHeapSpaceStatistics).ToLocalChecked())
+        .Check();
     return ret;
 }
 #endif
-}
+}    // namespace PUERTS_NAMESPACE
